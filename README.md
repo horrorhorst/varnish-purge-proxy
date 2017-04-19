@@ -1,6 +1,6 @@
-# varnish-purge-proxy
+https://github.com/BashtonLtd/varnish-purge-proxy copypasta
 
-[![Build Status](https://travis-ci.org/BashtonLtd/varnish-purge-proxy.svg?branch=master)](https://travis-ci.org/BashtonLtd/varnish-purge-proxy)
+# varnish-purge-proxy
 
 Proxy purge requests to multiple varnish servers
 
@@ -41,6 +41,15 @@ Specify an instance name prefix to limit instances that receive the purge reques
 ### Example
 
 `varnish-purge-proxy gce --credentials=creds.json --region=us-central1 --project=my-project --nameprefix=varnish`
+
+## IP
+
+Specify hostnames and you are good to go.
+
+### Example for IP service
+
+`varnish-purge-proxy ip --host=192.168.1.100,192.168.1.101`
+
 
 ### Authentication
 
