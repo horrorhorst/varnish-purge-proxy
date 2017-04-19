@@ -240,6 +240,9 @@ type Build struct {
 	// Steps: Describes the operations to be performed on the workspace.
 	Steps []*BuildStep `json:"steps,omitempty"`
 
+	// Substitutions: Substitutions data for Build resource.
+	Substitutions map[string]string `json:"substitutions,omitempty"`
+
 	// Timeout: Amount of time that this build should be allowed to run, to
 	// second
 	// granularity. If this amount of time elapses, work on the build will
@@ -399,13 +402,13 @@ type BuildStep struct {
 	// all of
 	// the officially supported build
 	// steps
-	// (https://github.com/GoogleCloudPlatform/cloud-builders). The Docker
-	// daemon
-	// will also have cached many of the layers for some popular images,
-	// like
-	// "ubuntu", "debian", but they will be refreshed at the time you
-	// attempt to
-	// use them.
+	// ([https://github.com/GoogleCloudPlatform/cloud-builders](https:/
+	// /github.com/GoogleCloudPlatform/cloud-builders)).
+	// The Docker daemon will also have cached many of the layers for some
+	// popular
+	// images, like "ubuntu", "debian", but they will be refreshed at the
+	// time you
+	// attempt to use them.
 	//
 	// If you built an image in a previous build step, it will be stored in
 	// the
@@ -475,6 +478,9 @@ type BuildTrigger struct {
 	//
 	// @OutputOnly
 	Id string `json:"id,omitempty"`
+
+	// Substitutions: Substitutions data for Build resource.
+	Substitutions map[string]string `json:"substitutions,omitempty"`
 
 	// TriggerTemplate: Template describing the types of source changes to
 	// trigger a build.

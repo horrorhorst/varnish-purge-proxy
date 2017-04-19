@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,17 +17,16 @@
 package errorreporting
 
 import (
-	"fmt"
-	"runtime"
-	"strings"
+	"time"
 
+	"cloud.google.com/go/internal/version"
 	gax "github.com/googleapis/gax-go"
 	"golang.org/x/net/context"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
 	clouderrorreportingpb "google.golang.org/genproto/googleapis/devtools/clouderrorreporting/v1beta1"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/codes"
 )
 
 var (
@@ -49,7 +48,19 @@ func defaultReportErrorsClientOptions() []option.ClientOption {
 }
 
 func defaultReportErrorsCallOptions() *ReportErrorsCallOptions {
-	retry := map[[2]string][]gax.CallOption{}
+	retry := map[[2]string][]gax.CallOption{
+		{"default", "non_idempotent"}: {
+			gax.WithRetry(func() gax.Retryer {
+				return gax.OnCodes([]codes.Code{
+					codes.Unavailable,
+				}, gax.Backoff{
+					Initial:    100 * time.Millisecond,
+					Max:        60000 * time.Millisecond,
+					Multiplier: 1.3,
+				})
+			}),
+		},
+	}
 	return &ReportErrorsCallOptions{
 		ReportErrorEvent: retry[[2]string{"default", "non_idempotent"}],
 	}
@@ -67,7 +78,7 @@ type ReportErrorsClient struct {
 	CallOptions *ReportErrorsCallOptions
 
 	// The metadata to be sent with each request.
-	metadata metadata.MD
+	xGoogHeader string
 }
 
 // NewReportErrorsClient creates a new report errors service client.
@@ -84,7 +95,7 @@ func NewReportErrorsClient(ctx context.Context, opts ...option.ClientOption) (*R
 
 		reportErrorsClient: clouderrorreportingpb.NewReportErrorsServiceClient(conn),
 	}
-	c.SetGoogleClientInfo("gax", gax.Version)
+	c.SetGoogleClientInfo()
 	return c, nil
 }
 
@@ -102,10 +113,10 @@ func (c *ReportErrorsClient) Close() error {
 // SetGoogleClientInfo sets the name and version of the application in
 // the `x-goog-api-client` header passed on each request. Intended for
 // use by Google-written clients.
-func (c *ReportErrorsClient) SetGoogleClientInfo(name, version string) {
-	goVersion := strings.Replace(runtime.Version(), " ", "_", -1)
-	v := fmt.Sprintf("%s/%s %s gax/%s go/%s", name, version, gapicNameVersion, gax.Version, goVersion)
-	c.metadata = metadata.Pairs("x-goog-api-client", v)
+func (c *ReportErrorsClient) SetGoogleClientInfo(keyval ...string) {
+	kv := append([]string{"gl-go", version.Go()}, keyval...)
+	kv = append(kv, "gapic", version.Repo, "gax", gax.Version, "grpc", "")
+	c.xGoogHeader = gax.XGoogHeader(kv...)
 }
 
 // ReportErrorsProjectPath returns the path for the project resource.
@@ -128,8 +139,7 @@ func ReportErrorsProjectPath(project string) string {
 // a `key` parameter. For example:
 // <pre>POST https://clouderrorreporting.googleapis.com/v1beta1/projects/example-project/events:report?key=123ABC456</pre>
 func (c *ReportErrorsClient) ReportErrorEvent(ctx context.Context, req *clouderrorreportingpb.ReportErrorEventRequest) (*clouderrorreportingpb.ReportErrorEventResponse, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	var resp *clouderrorreportingpb.ReportErrorEventResponse
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error

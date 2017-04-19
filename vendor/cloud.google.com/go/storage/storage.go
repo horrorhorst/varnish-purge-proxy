@@ -82,13 +82,16 @@ func NewClient(ctx context.Context, opts ...option.ClientOption) (*Client, error
 		option.WithUserAgent(userAgent),
 	}
 	opts = append(o, opts...)
-	hc, _, err := transport.NewHTTPClient(ctx, opts...)
+	hc, ep, err := transport.NewHTTPClient(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("dialing: %v", err)
 	}
 	rawService, err := raw.New(hc)
 	if err != nil {
 		return nil, fmt.Errorf("storage client: %v", err)
+	}
+	if ep != "" {
+		rawService.BasePath = ep
 	}
 	return &Client{
 		hc:  hc,
@@ -508,26 +511,32 @@ func (o *ObjectHandle) NewRangeReader(ctx context.Context, offset, length int64)
 		return nil, err
 	}
 	var res *http.Response
-	err = runWithRetry(ctx, func() error { res, err = o.c.hc.Do(req); return err })
+	err = runWithRetry(ctx, func() error {
+		res, err = o.c.hc.Do(req)
+		if err != nil {
+			return err
+		}
+		if res.StatusCode == http.StatusNotFound {
+			res.Body.Close()
+			return ErrObjectNotExist
+		}
+		if res.StatusCode < 200 || res.StatusCode > 299 {
+			body, _ := ioutil.ReadAll(res.Body)
+			res.Body.Close()
+			return &googleapi.Error{
+				Code:   res.StatusCode,
+				Header: res.Header,
+				Body:   string(body),
+			}
+		}
+		if offset > 0 && length != 0 && res.StatusCode != http.StatusPartialContent {
+			res.Body.Close()
+			return errors.New("storage: partial request not satisfied")
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
-	}
-	if res.StatusCode == http.StatusNotFound {
-		res.Body.Close()
-		return nil, ErrObjectNotExist
-	}
-	if res.StatusCode < 200 || res.StatusCode > 299 {
-		body, _ := ioutil.ReadAll(res.Body)
-		res.Body.Close()
-		return nil, &googleapi.Error{
-			Code:   res.StatusCode,
-			Header: res.Header,
-			Body:   string(body),
-		}
-	}
-	if offset > 0 && length != 0 && res.StatusCode != http.StatusPartialContent {
-		res.Body.Close()
-		return nil, errors.New("storage: partial request not satisfied")
 	}
 
 	var size int64 // total size of object, even if a range was requested.
@@ -647,6 +656,7 @@ func (o *ObjectAttrs) toRawObject(bucket string) *raw.Object {
 		ContentLanguage:    o.ContentLanguage,
 		CacheControl:       o.CacheControl,
 		ContentDisposition: o.ContentDisposition,
+		StorageClass:       o.StorageClass,
 		Acl:                acl,
 		Metadata:           o.Metadata,
 	}
@@ -715,14 +725,13 @@ type ObjectAttrs struct {
 	// of a particular object. This field is read-only.
 	MetaGeneration int64
 
-	// StorageClass is the storage class of the bucket.
+	// StorageClass is the storage class of the object.
 	// This value defines how objects in the bucket are stored and
 	// determines the SLA and the cost of storage. Typical values are
 	// "MULTI_REGIONAL", "REGIONAL", "NEARLINE", "COLDLINE", "STANDARD"
 	// and "DURABLE_REDUCED_AVAILABILITY".
 	// It defaults to "STANDARD", which is equivalent to "MULTI_REGIONAL"
-	// or "REGIONAL" depending on the bucket's location settings. This
-	// field is read-only.
+	// or "REGIONAL" depending on the bucket's location settings.
 	StorageClass string
 
 	// Created is the time the object was created. This field is read-only.

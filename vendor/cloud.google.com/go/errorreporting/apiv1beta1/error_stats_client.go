@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,12 +17,10 @@
 package errorreporting
 
 import (
-	"fmt"
 	"math"
-	"runtime"
-	"strings"
 	"time"
 
+	"cloud.google.com/go/internal/version"
 	gax "github.com/googleapis/gax-go"
 	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
@@ -31,7 +29,6 @@ import (
 	clouderrorreportingpb "google.golang.org/genproto/googleapis/devtools/clouderrorreporting/v1beta1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 )
 
 var (
@@ -88,7 +85,7 @@ type ErrorStatsClient struct {
 	CallOptions *ErrorStatsCallOptions
 
 	// The metadata to be sent with each request.
-	metadata metadata.MD
+	xGoogHeader string
 }
 
 // NewErrorStatsClient creates a new error stats service client.
@@ -106,7 +103,7 @@ func NewErrorStatsClient(ctx context.Context, opts ...option.ClientOption) (*Err
 
 		errorStatsClient: clouderrorreportingpb.NewErrorStatsServiceClient(conn),
 	}
-	c.SetGoogleClientInfo("gax", gax.Version)
+	c.SetGoogleClientInfo()
 	return c, nil
 }
 
@@ -124,10 +121,10 @@ func (c *ErrorStatsClient) Close() error {
 // SetGoogleClientInfo sets the name and version of the application in
 // the `x-goog-api-client` header passed on each request. Intended for
 // use by Google-written clients.
-func (c *ErrorStatsClient) SetGoogleClientInfo(name, version string) {
-	goVersion := strings.Replace(runtime.Version(), " ", "_", -1)
-	v := fmt.Sprintf("%s/%s %s gax/%s go/%s", name, version, gapicNameVersion, gax.Version, goVersion)
-	c.metadata = metadata.Pairs("x-goog-api-client", v)
+func (c *ErrorStatsClient) SetGoogleClientInfo(keyval ...string) {
+	kv := append([]string{"gl-go", version.Go()}, keyval...)
+	kv = append(kv, "gapic", version.Repo, "gax", gax.Version, "grpc", "")
+	c.xGoogHeader = gax.XGoogHeader(kv...)
 }
 
 // ErrorStatsProjectPath returns the path for the project resource.
@@ -143,8 +140,7 @@ func ErrorStatsProjectPath(project string) string {
 
 // ListGroupStats lists the specified groups.
 func (c *ErrorStatsClient) ListGroupStats(ctx context.Context, req *clouderrorreportingpb.ListGroupStatsRequest) *ErrorGroupStatsIterator {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	it := &ErrorGroupStatsIterator{}
 	it.InternalFetch = func(pageSize int, pageToken string) ([]*clouderrorreportingpb.ErrorGroupStats, string, error) {
 		var resp *clouderrorreportingpb.ListGroupStatsResponse
@@ -178,8 +174,7 @@ func (c *ErrorStatsClient) ListGroupStats(ctx context.Context, req *clouderrorre
 
 // ListEvents lists the specified events.
 func (c *ErrorStatsClient) ListEvents(ctx context.Context, req *clouderrorreportingpb.ListEventsRequest) *ErrorEventIterator {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	it := &ErrorEventIterator{}
 	it.InternalFetch = func(pageSize int, pageToken string) ([]*clouderrorreportingpb.ErrorEvent, string, error) {
 		var resp *clouderrorreportingpb.ListEventsResponse
@@ -213,8 +208,7 @@ func (c *ErrorStatsClient) ListEvents(ctx context.Context, req *clouderrorreport
 
 // DeleteEvents deletes all error events of a given project.
 func (c *ErrorStatsClient) DeleteEvents(ctx context.Context, req *clouderrorreportingpb.DeleteEventsRequest) (*clouderrorreportingpb.DeleteEventsResponse, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	var resp *clouderrorreportingpb.DeleteEventsResponse
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error

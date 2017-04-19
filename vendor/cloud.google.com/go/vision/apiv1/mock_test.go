@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,6 +42,11 @@ var _ = ptypes.MarshalAny
 var _ status.Status
 
 type mockImageAnnotatorServer struct {
+	// Embed for forward compatibility.
+	// Tests will keep working if more methods are added
+	// in the future.
+	visionpb.ImageAnnotatorServer
+
 	reqs []proto.Message
 
 	// If set, all calls return this error.

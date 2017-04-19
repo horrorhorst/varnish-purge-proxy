@@ -1,8 +1,8 @@
 hash: 5ab31d2954408d21da485160ea3213b37b5a8fac42a78f7e2171bff41cb57613
-updated: 2017-02-07T13:51:20.131874045Z
+updated: 2017-04-19T13:35:41.286907019+02:00
 imports:
 - name: cloud.google.com/go
-  version: c116c7972ec94f148459a304d07a67ecbc770d4b
+  version: 2e6a95edb1071d750f6d7db777bf66cd2997af6c
   subpackages:
   - compute/
   - compute/metadata
@@ -14,7 +14,7 @@ imports:
 - name: github.com/alecthomas/units
   version: 2efee857e7cfd4f3d0138cc3cbb1b4966962b93a
 - name: github.com/aws/aws-sdk-go
-  version: 3f8f870ec9939e32b3372abf74d24e468bcd285d
+  version: 4bbd6fa3fdede4c68e941248f974b8951c17de89
   subpackages:
   - aws
   - aws/awserr
@@ -38,21 +38,21 @@ imports:
   - private/protocol/query/queryutil
   - private/protocol/rest
   - private/protocol/xml/xmlutil
-  - private/waiter
   - service/ec2
   - service/sts
 - name: github.com/go-ini/ini
-  version: e3c2d47c61e5333f9aa2974695dd94396eb69c75
+  version: e7fea39b01aea8d5671f6858f0532f56e8bff3a5
 - name: github.com/golang/protobuf
-  version: 8ee79997227bf9b34611aee7946ae64735e6fd93
+  version: 2bba0603135d7d7f5cb73b2125beeda19c09f4ef
   subpackages:
   - proto
+  - ptypes/any
 - name: github.com/googleapis/gax-go
-  version: da06d194a00e19ce00d9011a13931c3f6f6887c7
+  version: 9af46dd5a1713e8b5cd71106287eba3cefdde50b
 - name: github.com/jmespath/go-jmespath
   version: bd40a432e4c76585ef6b72d3fd96fb9b6dc7b68d
 - name: golang.org/x/net
-  version: 236b8f043b920452504e263bc21d354427127473
+  version: 5602c733f70afc6dcec6766be0d5034d4c4f14de
   subpackages:
   - context
   - context/ctxhttp
@@ -63,14 +63,21 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/oauth2
-  version: 314dd2c0bf3ebd592ec0d20847d27e79d0dbe8dd
+  version: a6bd8cefa1811bd24b86f8902872e4e8225f74c4
   subpackages:
   - google
   - internal
   - jws
   - jwt
+- name: golang.org/x/text
+  version: f4b4367115ec2de254587813edaa901bc1c723a8
+  subpackages:
+  - secure/bidirule
+  - transform
+  - unicode/bidi
+  - unicode/norm
 - name: google.golang.org/api
-  version: 3d017632ea100549bbb3ae74c567d59f437ece0f
+  version: 0b0f5a5147930d092abd132cf09fafa23e8c3942
   subpackages:
   - compute
   - compute/v1
@@ -78,7 +85,7 @@ imports:
   - googleapi
   - googleapi/internal/uritemplates
 - name: google.golang.org/appengine
-  version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
+  version: 170382fa85b10b94728989dfcf6cc818b335c952
   subpackages:
   - internal
   - internal/app_identity
@@ -89,19 +96,25 @@ imports:
   - internal/remote_api
   - internal/urlfetch
   - urlfetch
+- name: google.golang.org/genproto
+  version: 411e09b969b1170a9f0c467558eb4c4c110d9c77
+  subpackages:
+  - googleapis/rpc/status
 - name: google.golang.org/grpc
-  version: 21f8ed309495401e6fd79b3a9fd549582aed1b4c
+  version: 6914ab1e338c92da4218a23d27fcd03d0ad78d46
   subpackages:
   - codes
   - credentials
   - grpclog
   - internal
+  - keepalive
   - metadata
   - naming
   - peer
   - stats
+  - status
   - tap
   - transport
 - name: gopkg.in/alecthomas/kingpin.v1
-  version: e9044be3ab2a8e11d4e1f418d12f0790d57e8d70
+  version: 7f0871f2e17818990e4eed73f9b5c2f429501228
 testImports: []

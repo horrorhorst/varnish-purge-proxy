@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,12 +17,10 @@
 package logging
 
 import (
-	"fmt"
 	"math"
-	"runtime"
-	"strings"
 	"time"
 
+	"cloud.google.com/go/internal/version"
 	gax "github.com/googleapis/gax-go"
 	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
@@ -31,12 +29,11 @@ import (
 	loggingpb "google.golang.org/genproto/googleapis/logging/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 )
 
 var (
-	metricsParentPathTemplate = gax.MustCompilePathTemplate("projects/{project}")
-	metricsMetricPathTemplate = gax.MustCompilePathTemplate("projects/{project}/metrics/{metric}")
+	metricsProjectPathTemplate = gax.MustCompilePathTemplate("projects/{project}")
+	metricsMetricPathTemplate  = gax.MustCompilePathTemplate("projects/{project}/metrics/{metric}")
 )
 
 // MetricsCallOptions contains the retry settings for each method of MetricsClient.
@@ -75,6 +72,17 @@ func defaultMetricsCallOptions() *MetricsCallOptions {
 				})
 			}),
 		},
+		{"default", "non_idempotent"}: {
+			gax.WithRetry(func() gax.Retryer {
+				return gax.OnCodes([]codes.Code{
+					codes.Unavailable,
+				}, gax.Backoff{
+					Initial:    100 * time.Millisecond,
+					Max:        1000 * time.Millisecond,
+					Multiplier: 1.2,
+				})
+			}),
+		},
 	}
 	return &MetricsCallOptions{
 		ListLogMetrics:  retry[[2]string{"default", "idempotent"}],
@@ -97,7 +105,7 @@ type MetricsClient struct {
 	CallOptions *MetricsCallOptions
 
 	// The metadata to be sent with each request.
-	metadata metadata.MD
+	xGoogHeader string
 }
 
 // NewMetricsClient creates a new metrics service v2 client.
@@ -114,7 +122,7 @@ func NewMetricsClient(ctx context.Context, opts ...option.ClientOption) (*Metric
 
 		metricsClient: loggingpb.NewMetricsServiceV2Client(conn),
 	}
-	c.SetGoogleClientInfo("gax", gax.Version)
+	c.SetGoogleClientInfo()
 	return c, nil
 }
 
@@ -132,15 +140,15 @@ func (c *MetricsClient) Close() error {
 // SetGoogleClientInfo sets the name and version of the application in
 // the `x-goog-api-client` header passed on each request. Intended for
 // use by Google-written clients.
-func (c *MetricsClient) SetGoogleClientInfo(name, version string) {
-	goVersion := strings.Replace(runtime.Version(), " ", "_", -1)
-	v := fmt.Sprintf("%s/%s %s gax/%s go/%s", name, version, gapicNameVersion, gax.Version, goVersion)
-	c.metadata = metadata.Pairs("x-goog-api-client", v)
+func (c *MetricsClient) SetGoogleClientInfo(keyval ...string) {
+	kv := append([]string{"gl-go", version.Go()}, keyval...)
+	kv = append(kv, "gapic", version.Repo, "gax", gax.Version, "grpc", "")
+	c.xGoogHeader = gax.XGoogHeader(kv...)
 }
 
-// MetricsParentPath returns the path for the parent resource.
-func MetricsParentPath(project string) string {
-	path, err := metricsParentPathTemplate.Render(map[string]string{
+// MetricsProjectPath returns the path for the project resource.
+func MetricsProjectPath(project string) string {
+	path, err := metricsProjectPathTemplate.Render(map[string]string{
 		"project": project,
 	})
 	if err != nil {
@@ -163,8 +171,7 @@ func MetricsMetricPath(project, metric string) string {
 
 // ListLogMetrics lists logs-based metrics.
 func (c *MetricsClient) ListLogMetrics(ctx context.Context, req *loggingpb.ListLogMetricsRequest) *LogMetricIterator {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	it := &LogMetricIterator{}
 	it.InternalFetch = func(pageSize int, pageToken string) ([]*loggingpb.LogMetric, string, error) {
 		var resp *loggingpb.ListLogMetricsResponse
@@ -198,8 +205,7 @@ func (c *MetricsClient) ListLogMetrics(ctx context.Context, req *loggingpb.ListL
 
 // GetLogMetric gets a logs-based metric.
 func (c *MetricsClient) GetLogMetric(ctx context.Context, req *loggingpb.GetLogMetricRequest) (*loggingpb.LogMetric, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	var resp *loggingpb.LogMetric
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
@@ -214,8 +220,7 @@ func (c *MetricsClient) GetLogMetric(ctx context.Context, req *loggingpb.GetLogM
 
 // CreateLogMetric creates a logs-based metric.
 func (c *MetricsClient) CreateLogMetric(ctx context.Context, req *loggingpb.CreateLogMetricRequest) (*loggingpb.LogMetric, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	var resp *loggingpb.LogMetric
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
@@ -230,8 +235,7 @@ func (c *MetricsClient) CreateLogMetric(ctx context.Context, req *loggingpb.Crea
 
 // UpdateLogMetric creates or updates a logs-based metric.
 func (c *MetricsClient) UpdateLogMetric(ctx context.Context, req *loggingpb.UpdateLogMetricRequest) (*loggingpb.LogMetric, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	var resp *loggingpb.LogMetric
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
@@ -246,8 +250,7 @@ func (c *MetricsClient) UpdateLogMetric(ctx context.Context, req *loggingpb.Upda
 
 // DeleteLogMetric deletes a logs-based metric.
 func (c *MetricsClient) DeleteLogMetric(ctx context.Context, req *loggingpb.DeleteLogMetricRequest) error {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
 		_, err = c.metricsClient.DeleteLogMetric(ctx, req)

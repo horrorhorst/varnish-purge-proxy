@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,12 +17,10 @@
 package monitoring
 
 import (
-	"fmt"
 	"math"
-	"runtime"
-	"strings"
 	"time"
 
+	"cloud.google.com/go/internal/version"
 	gax "github.com/googleapis/gax-go"
 	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
@@ -32,7 +30,6 @@ import (
 	monitoringpb "google.golang.org/genproto/googleapis/monitoring/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 )
 
 var (
@@ -76,6 +73,17 @@ func defaultGroupCallOptions() *GroupCallOptions {
 				})
 			}),
 		},
+		{"default", "non_idempotent"}: {
+			gax.WithRetry(func() gax.Retryer {
+				return gax.OnCodes([]codes.Code{
+					codes.Unavailable,
+				}, gax.Backoff{
+					Initial:    100 * time.Millisecond,
+					Max:        60000 * time.Millisecond,
+					Multiplier: 1.3,
+				})
+			}),
+		},
 	}
 	return &GroupCallOptions{
 		ListGroups:       retry[[2]string{"default", "idempotent"}],
@@ -99,7 +107,7 @@ type GroupClient struct {
 	CallOptions *GroupCallOptions
 
 	// The metadata to be sent with each request.
-	metadata metadata.MD
+	xGoogHeader string
 }
 
 // NewGroupClient creates a new group service client.
@@ -127,7 +135,7 @@ func NewGroupClient(ctx context.Context, opts ...option.ClientOption) (*GroupCli
 
 		groupClient: monitoringpb.NewGroupServiceClient(conn),
 	}
-	c.SetGoogleClientInfo("gax", gax.Version)
+	c.SetGoogleClientInfo()
 	return c, nil
 }
 
@@ -145,10 +153,10 @@ func (c *GroupClient) Close() error {
 // SetGoogleClientInfo sets the name and version of the application in
 // the `x-goog-api-client` header passed on each request. Intended for
 // use by Google-written clients.
-func (c *GroupClient) SetGoogleClientInfo(name, version string) {
-	goVersion := strings.Replace(runtime.Version(), " ", "_", -1)
-	v := fmt.Sprintf("%s/%s %s gax/%s go/%s", name, version, gapicNameVersion, gax.Version, goVersion)
-	c.metadata = metadata.Pairs("x-goog-api-client", v)
+func (c *GroupClient) SetGoogleClientInfo(keyval ...string) {
+	kv := append([]string{"gl-go", version.Go()}, keyval...)
+	kv = append(kv, "gapic", version.Repo, "gax", gax.Version, "grpc", "")
+	c.xGoogHeader = gax.XGoogHeader(kv...)
 }
 
 // GroupProjectPath returns the path for the project resource.
@@ -176,8 +184,7 @@ func GroupGroupPath(project, group string) string {
 
 // ListGroups lists the existing groups.
 func (c *GroupClient) ListGroups(ctx context.Context, req *monitoringpb.ListGroupsRequest) *GroupIterator {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	it := &GroupIterator{}
 	it.InternalFetch = func(pageSize int, pageToken string) ([]*monitoringpb.Group, string, error) {
 		var resp *monitoringpb.ListGroupsResponse
@@ -211,8 +218,7 @@ func (c *GroupClient) ListGroups(ctx context.Context, req *monitoringpb.ListGrou
 
 // GetGroup gets a single group.
 func (c *GroupClient) GetGroup(ctx context.Context, req *monitoringpb.GetGroupRequest) (*monitoringpb.Group, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	var resp *monitoringpb.Group
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
@@ -227,8 +233,7 @@ func (c *GroupClient) GetGroup(ctx context.Context, req *monitoringpb.GetGroupRe
 
 // CreateGroup creates a new group.
 func (c *GroupClient) CreateGroup(ctx context.Context, req *monitoringpb.CreateGroupRequest) (*monitoringpb.Group, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	var resp *monitoringpb.Group
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
@@ -244,8 +249,7 @@ func (c *GroupClient) CreateGroup(ctx context.Context, req *monitoringpb.CreateG
 // UpdateGroup updates an existing group.
 // You can change any group attributes except `name`.
 func (c *GroupClient) UpdateGroup(ctx context.Context, req *monitoringpb.UpdateGroupRequest) (*monitoringpb.Group, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	var resp *monitoringpb.Group
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
@@ -260,8 +264,7 @@ func (c *GroupClient) UpdateGroup(ctx context.Context, req *monitoringpb.UpdateG
 
 // DeleteGroup deletes an existing group.
 func (c *GroupClient) DeleteGroup(ctx context.Context, req *monitoringpb.DeleteGroupRequest) error {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
 		_, err = c.groupClient.DeleteGroup(ctx, req)
@@ -272,8 +275,7 @@ func (c *GroupClient) DeleteGroup(ctx context.Context, req *monitoringpb.DeleteG
 
 // ListGroupMembers lists the monitored resources that are members of a group.
 func (c *GroupClient) ListGroupMembers(ctx context.Context, req *monitoringpb.ListGroupMembersRequest) *MonitoredResourceIterator {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	it := &MonitoredResourceIterator{}
 	it.InternalFetch = func(pageSize int, pageToken string) ([]*monitoredrespb.MonitoredResource, string, error) {
 		var resp *monitoringpb.ListGroupMembersResponse

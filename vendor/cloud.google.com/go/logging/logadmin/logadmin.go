@@ -34,15 +34,18 @@ import (
 	"strings"
 	"time"
 
+	"cloud.google.com/go/internal/version"
 	"cloud.google.com/go/logging"
 	vkit "cloud.google.com/go/logging/apiv2"
 	"cloud.google.com/go/logging/internal"
 	"github.com/golang/protobuf/ptypes"
+	gax "github.com/googleapis/gax-go"
 	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	logtypepb "google.golang.org/genproto/googleapis/logging/type"
 	logpb "google.golang.org/genproto/googleapis/logging/v2"
+	"google.golang.org/grpc/codes"
 	// Import the following so EntryIterator can unmarshal log protos.
 	_ "google.golang.org/genproto/googleapis/cloud/audit"
 )
@@ -83,9 +86,23 @@ func NewClient(ctx context.Context, projectID string, opts ...option.ClientOptio
 	if err != nil {
 		return nil, err
 	}
-	lc.SetGoogleClientInfo("logging", internal.Version)
-	sc.SetGoogleClientInfo("logging", internal.Version)
-	mc.SetGoogleClientInfo("logging", internal.Version)
+	// Retry some non-idempotent methods on INTERNAL, because it happens sometimes
+	// and in all observed cases the operation did not complete.
+	retryerOnInternal := func() gax.Retryer {
+		return gax.OnCodes([]codes.Code{
+			codes.Internal,
+		}, gax.Backoff{
+			Initial:    100 * time.Millisecond,
+			Max:        1000 * time.Millisecond,
+			Multiplier: 1.2,
+		})
+	}
+	mc.CallOptions.CreateLogMetric = []gax.CallOption{gax.WithRetry(retryerOnInternal)}
+	mc.CallOptions.UpdateLogMetric = []gax.CallOption{gax.WithRetry(retryerOnInternal)}
+
+	lc.SetGoogleClientInfo("gccl", version.Repo)
+	sc.SetGoogleClientInfo("gccl", version.Repo)
+	mc.SetGoogleClientInfo("gccl", version.Repo)
 	client := &Client{
 		lClient:   lc,
 		sClient:   sc,

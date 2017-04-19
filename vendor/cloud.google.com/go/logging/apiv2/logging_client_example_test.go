@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -99,6 +99,28 @@ func ExampleClient_ListMonitoredResourceDescriptors() {
 	// TODO: Fill request struct fields.
 	}
 	it := c.ListMonitoredResourceDescriptors(ctx, req)
+	for {
+		resp, err := it.Next()
+		if err != nil {
+			// TODO: Handle error.
+			break
+		}
+		// TODO: Use resp.
+		_ = resp
+	}
+}
+
+func ExampleClient_ListLogs() {
+	ctx := context.Background()
+	c, err := logging.NewClient(ctx)
+	if err != nil {
+		// TODO: Handle error.
+	}
+
+	req := &loggingpb.ListLogsRequest{
+	// TODO: Fill request struct fields.
+	}
+	it := c.ListLogs(ctx, req)
 	for {
 		resp, err := it.Next()
 		if err != nil {

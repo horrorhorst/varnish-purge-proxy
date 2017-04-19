@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,13 +17,11 @@
 package pubsub
 
 import (
-	"fmt"
 	"math"
-	"runtime"
-	"strings"
 	"time"
 
 	"cloud.google.com/go/iam"
+	"cloud.google.com/go/internal/version"
 	gax "github.com/googleapis/gax-go"
 	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
@@ -32,7 +30,6 @@ import (
 	pubsubpb "google.golang.org/genproto/googleapis/pubsub/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 )
 
 var (
@@ -50,6 +47,7 @@ type SubscriberCallOptions struct {
 	ModifyAckDeadline  []gax.CallOption
 	Acknowledge        []gax.CallOption
 	Pull               []gax.CallOption
+	StreamingPull      []gax.CallOption
 	ModifyPushConfig   []gax.CallOption
 }
 
@@ -86,6 +84,7 @@ func defaultSubscriberCallOptions() *SubscriberCallOptions {
 		ModifyAckDeadline:  retry[[2]string{"default", "non_idempotent"}],
 		Acknowledge:        retry[[2]string{"messaging", "non_idempotent"}],
 		Pull:               retry[[2]string{"messaging", "non_idempotent"}],
+		StreamingPull:      retry[[2]string{"messaging", "non_idempotent"}],
 		ModifyPushConfig:   retry[[2]string{"default", "non_idempotent"}],
 	}
 }
@@ -102,7 +101,7 @@ type SubscriberClient struct {
 	CallOptions *SubscriberCallOptions
 
 	// The metadata to be sent with each request.
-	metadata metadata.MD
+	xGoogHeader string
 }
 
 // NewSubscriberClient creates a new subscriber client.
@@ -120,7 +119,7 @@ func NewSubscriberClient(ctx context.Context, opts ...option.ClientOption) (*Sub
 
 		subscriberClient: pubsubpb.NewSubscriberClient(conn),
 	}
-	c.SetGoogleClientInfo("gax", gax.Version)
+	c.SetGoogleClientInfo()
 	return c, nil
 }
 
@@ -138,10 +137,10 @@ func (c *SubscriberClient) Close() error {
 // SetGoogleClientInfo sets the name and version of the application in
 // the `x-goog-api-client` header passed on each request. Intended for
 // use by Google-written clients.
-func (c *SubscriberClient) SetGoogleClientInfo(name, version string) {
-	goVersion := strings.Replace(runtime.Version(), " ", "_", -1)
-	v := fmt.Sprintf("%s/%s %s gax/%s go/%s", name, version, gapicNameVersion, gax.Version, goVersion)
-	c.metadata = metadata.Pairs("x-goog-api-client", v)
+func (c *SubscriberClient) SetGoogleClientInfo(keyval ...string) {
+	kv := append([]string{"gl-go", version.Go()}, keyval...)
+	kv = append(kv, "gapic", version.Repo, "gax", gax.Version, "grpc", "")
+	c.xGoogHeader = gax.XGoogHeader(kv...)
 }
 
 // SubscriberProjectPath returns the path for the project resource.
@@ -198,8 +197,7 @@ func (c *SubscriberClient) TopicIAM(topic *pubsubpb.Topic) *iam.Handle {
 // The generated name is populated in the returned Subscription object.
 // Note that for REST API requests, you must specify a name in the request.
 func (c *SubscriberClient) CreateSubscription(ctx context.Context, req *pubsubpb.Subscription) (*pubsubpb.Subscription, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	var resp *pubsubpb.Subscription
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
@@ -214,8 +212,7 @@ func (c *SubscriberClient) CreateSubscription(ctx context.Context, req *pubsubpb
 
 // GetSubscription gets the configuration details of a subscription.
 func (c *SubscriberClient) GetSubscription(ctx context.Context, req *pubsubpb.GetSubscriptionRequest) (*pubsubpb.Subscription, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	var resp *pubsubpb.Subscription
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
@@ -230,8 +227,7 @@ func (c *SubscriberClient) GetSubscription(ctx context.Context, req *pubsubpb.Ge
 
 // ListSubscriptions lists matching subscriptions.
 func (c *SubscriberClient) ListSubscriptions(ctx context.Context, req *pubsubpb.ListSubscriptionsRequest) *SubscriptionIterator {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	it := &SubscriptionIterator{}
 	it.InternalFetch = func(pageSize int, pageToken string) ([]*pubsubpb.Subscription, string, error) {
 		var resp *pubsubpb.ListSubscriptionsResponse
@@ -269,8 +265,7 @@ func (c *SubscriberClient) ListSubscriptions(ctx context.Context, req *pubsubpb.
 // the same name, but the new one has no association with the old
 // subscription or its topic unless the same topic is specified.
 func (c *SubscriberClient) DeleteSubscription(ctx context.Context, req *pubsubpb.DeleteSubscriptionRequest) error {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
 		_, err = c.subscriberClient.DeleteSubscription(ctx, req)
@@ -285,8 +280,7 @@ func (c *SubscriberClient) DeleteSubscription(ctx context.Context, req *pubsubpb
 // processing was interrupted. Note that this does not modify the
 // subscription-level `ackDeadlineSeconds` used for subsequent messages.
 func (c *SubscriberClient) ModifyAckDeadline(ctx context.Context, req *pubsubpb.ModifyAckDeadlineRequest) error {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
 		_, err = c.subscriberClient.ModifyAckDeadline(ctx, req)
@@ -303,8 +297,7 @@ func (c *SubscriberClient) ModifyAckDeadline(ctx context.Context, req *pubsubpb.
 // but such a message may be redelivered later. Acknowledging a message more
 // than once will not result in an error.
 func (c *SubscriberClient) Acknowledge(ctx context.Context, req *pubsubpb.AcknowledgeRequest) error {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
 		_, err = c.subscriberClient.Acknowledge(ctx, req)
@@ -318,14 +311,39 @@ func (c *SubscriberClient) Acknowledge(ctx context.Context, req *pubsubpb.Acknow
 // there are too many concurrent pull requests pending for the given
 // subscription.
 func (c *SubscriberClient) Pull(ctx context.Context, req *pubsubpb.PullRequest) (*pubsubpb.PullResponse, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	var resp *pubsubpb.PullResponse
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
 		resp, err = c.subscriberClient.Pull(ctx, req)
 		return err
 	}, c.CallOptions.Pull...)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// StreamingPull (EXPERIMENTAL) StreamingPull is an experimental feature. This RPC will
+// respond with UNIMPLEMENTED errors unless you have been invited to test
+// this feature. Contact cloud-pubsub@google.com with any questions.
+//
+// Establishes a stream with the server, which sends messages down to the
+// client. The client streams acknowledgements and ack deadline modifications
+// back to the server. The server will close the stream and return the status
+// on any error. The server may close the stream with status `OK` to reassign
+// server-side resources, in which case, the client should re-establish the
+// stream. `UNAVAILABLE` may also be returned in the case of a transient error
+// (e.g., a server restart). These should also be retried by the client. Flow
+// control can be achieved by configuring the underlying RPC channel.
+func (c *SubscriberClient) StreamingPull(ctx context.Context) (pubsubpb.Subscriber_StreamingPullClient, error) {
+	ctx = insertXGoog(ctx, c.xGoogHeader)
+	var resp pubsubpb.Subscriber_StreamingPullClient
+	err := gax.Invoke(ctx, func(ctx context.Context) error {
+		var err error
+		resp, err = c.subscriberClient.StreamingPull(ctx)
+		return err
+	}, c.CallOptions.StreamingPull...)
 	if err != nil {
 		return nil, err
 	}
@@ -339,8 +357,7 @@ func (c *SubscriberClient) Pull(ctx context.Context, req *pubsubpb.PullRequest) 
 // attributes of a push subscription. Messages will accumulate for delivery
 // continuously through the call regardless of changes to the `PushConfig`.
 func (c *SubscriberClient) ModifyPushConfig(ctx context.Context, req *pubsubpb.ModifyPushConfigRequest) error {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = insertXGoog(ctx, c.xGoogHeader)
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
 		_, err = c.subscriberClient.ModifyPushConfig(ctx, req)

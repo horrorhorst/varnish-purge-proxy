@@ -20,7 +20,37 @@ backwards-incompatible changes.
 
 **NOTE:** Github repo is a mirror of [https://code.googlesource.com/gocloud](https://code.googlesource.com/gocloud).
 
+  * [News](#news)
+  * [Supported APIs](#supported-apis)
+  * [Go Versions Supported](#go-versions-supported)
+  * [Authorization](#authorization)
+  * [Cloud Datastore](#cloud-datastore-)
+  * [Cloud Storage](#cloud-storage-)
+  * [Cloud Pub/Sub](#cloud-pub-sub-)
+  * [Cloud BigQuery](#cloud-bigquery-)
+  * [Stackdriver Logging](#stackdriver-logging-)
+  * [Cloud Spanner](#cloud-spanner-)
+
+
 ## News
+
+_February 14, 2017_
+
+Release of a client library for Spanner. See
+the
+[blog post](https://cloudplatform.googleblog.com/2017/02/introducing-Cloud-Spanner-a-global-database-service-for-mission-critical-applications.html). 
+
+Note that although the Spanner service is beta, the Go client library is alpha.
+
+_December 12, 2016_
+
+Beta release of BigQuery, DataStore, Logging and Storage. See the
+[blog post](https://cloudplatform.googleblog.com/2016/12/announcing-new-google-cloud-client.html).
+
+Also, BigQuery now supports structs. Read a row directly into a struct with
+`RowIterator.Next`, and upload a row directly from a struct with `Uploader.Put`.
+You can also use field tags. See the [package documentation][cloud-bigquery-ref]
+for details.
 
 _December 5, 2016_
 
@@ -148,9 +178,10 @@ Google API                     | Status       | Package
 [BigQuery][cloud-bigquery]     | beta         | [`cloud.google.com/go/bigquery`][cloud-bigquery-ref]
 [Logging][cloud-logging]       | beta         | [`cloud.google.com/go/logging`][cloud-logging-ref]
 [Pub/Sub][cloud-pubsub]        | alpha | [`cloud.google.com/go/pubsub`][cloud-pubsub-ref]
-[Vision][cloud-vision]         | alpha | [`cloud.google.com/go/vision`][cloud-vision-ref]
-[Language][cloud-language]     | alpha | [`cloud.google.com/go/language/apiv1beta1`][cloud-language-ref]
+[Vision][cloud-vision]         | beta | [`cloud.google.com/go/vision`][cloud-vision-ref]
+[Language][cloud-language]     | alpha | [`cloud.google.com/go/language/apiv1`][cloud-language-ref]
 [Speech][cloud-speech]         | alpha | [`cloud.google.com/go/speech/apiv1beta`][cloud-speech-ref]
+[Spanner][cloud-spanner]       | alpha | [`cloud.google.com/go/spanner`][cloud-spanner-ref]
 
 
 > **Alpha status**: the API is still being actively developed. As a
@@ -183,6 +214,10 @@ currently supported by looking at the lines following `go:` in
 By default, each API will use [Google Application Default Credentials][default-creds]
 for authorization credentials used in calling the API endpoints. This will allow your
 application to run in many environments without requiring explicit configuration.
+
+```go
+client, err := storage.NewClient(ctx)
+```
 
 To authorize using a
 [JSON key file](https://cloud.google.com/iam/docs/managing-service-account-keys),
@@ -293,6 +328,8 @@ if err != nil {
 }
 ```
 
+Then use the client to publish and subscribe:
+
 ```go
 // Publish "hello world" on topic1.
 topic := client.Topic("topic1")
@@ -358,7 +395,7 @@ if err != nil {
 }
 // Iterate through the results.
 for {
-    var values bigquery.ValueList
+    var values []bigquery.Value
     err := it.Next(&values)
     if err == iterator.Done {
         break
@@ -403,6 +440,41 @@ if err != nil {
 }
 ```
 
+
+## Cloud Spanner [![GoDoc](https://godoc.org/cloud.google.com/go/spanner?status.svg)](https://godoc.org/cloud.google.com/go/spanner)
+
+- [About Cloud Spanner][cloud-spanner]
+- [API documentation][cloud-spanner-docs]
+- [Go client documentation](https://godoc.org/cloud.google.com/go/spanner)
+
+### Example Usage
+
+First create a `spanner.Client` to use throughout your application:
+
+```go
+client, err := spanner.NewClient(ctx, "projects/P/instances/I/databases/D")
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+```go
+// Simple Reads And Writes
+_, err := client.Apply(ctx, []*spanner.Mutation{
+    spanner.Insert("Users",
+        []string{"name", "email"},
+        []interface{}{"alice", "a@example.com"})})
+if err != nil {
+    log.Fatal(err)
+}
+row, err := client.Single().ReadRow(ctx, "Users",
+    spanner.Key{"alice"}, []string{"email"})
+if err != nil {
+   log.Fatal(err)
+}
+```
+
+
 ## Contributing
 
 Contributions are welcome. Please, see the
@@ -444,9 +516,13 @@ for more information.
 [cloud-vision-ref]: https://godoc.org/cloud.google.com/go/vision
 
 [cloud-language]: https://cloud.google.com/natural-language
-[cloud-language-ref]: https://godoc.org/cloud.google.com/go/language/apiv1beta1
+[cloud-language-ref]: https://godoc.org/cloud.google.com/go/language/apiv1
 
 [cloud-speech]: https://cloud.google.com/speech
 [cloud-speech-ref]: https://godoc.org/cloud.google.com/go/speech/apiv1beta1
+
+[cloud-spanner]: https://cloud.google.com/spanner/
+[cloud-spanner-ref]: https://godoc.org/cloud.google.com/go/spanner
+[cloud-spanner-docs]: https://cloud.google.com/spanner/docs
 
 [default-creds]: https://developers.google.com/identity/protocols/application-default-credentials

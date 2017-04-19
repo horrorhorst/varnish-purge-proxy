@@ -27,7 +27,10 @@ import (
 	"google.golang.org/api/google-api-go-generator/internal/disco"
 )
 
-const googleDiscoveryURL = "https://www.googleapis.com/discovery/v1/apis"
+const (
+	googleDiscoveryURL = "https://www.googleapis.com/discovery/v1/apis"
+	generatorVersion   = "20170210"
+)
 
 var (
 	apiToGenerate = flag.String("api", "*", "The API ID to generate, like 'tasks:v1'. A value of '*' means all.")
@@ -389,7 +392,7 @@ func (a *API) Target() string {
 // (typically "Service").
 func (a *API) ServiceType() string {
 	switch a.Name {
-	case "appengine", "content", "servicemanagement":
+	case "appengine", "content", "servicemanagement", "serviceuser":
 		return "APIService"
 	default:
 		return "Service"

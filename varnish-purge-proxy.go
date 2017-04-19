@@ -29,34 +29,37 @@ import (
 	"os"
 	"sync"
 	"time"
-
-	"github.com/BashtonLtd/varnish-purge-proxy/providers"
 	"gopkg.in/alecthomas/kingpin.v1"
+	"github.com/horrorhorst/varnish-purge-proxy/providers"
+	"strings"
 )
 
 var (
 	// Global application args
-	app      = kingpin.New("varnish-purge-proxy", "Proxy purge requests to multiple varnish servers.")
-	cache    = app.Flag("cache", "Time in seconds to cache instance IP lookup.").Default("60").Int()
-	debug    = app.Flag("debug", "Log additional debug messages.").Bool()
+	app = kingpin.New("varnish-purge-proxy", "Proxy purge requests to multiple varnish servers.")
+	cache = app.Flag("cache", "Time in seconds to cache instance IP lookup.").Default("60").Int()
+	debug = app.Flag("debug", "Log additional debug messages.").Bool()
 	destport = app.Flag("destport", "The destination port of the varnish server to target.").Default("80").Int()
-	listen   = app.Flag("listen", "Host address to listen on, defaults to 127.0.0.1").Default("127.0.0.1").String()
-	port     = app.Flag("port", "Port to listen on.").Default("8000").Int()
+	listen = app.Flag("listen", "Host address to listen on, defaults to 127.0.0.1").Default("127.0.0.1").String()
+	port = app.Flag("port", "Port to listen on.").Default("8000").Int()
 
 	// AWS service args
 	awsService = app.Command("aws", "Use AWS service.")
-	tags       = awsService.Arg("tag", "Key:value pair of tags to match EC2 instances.").Required().Strings()
+	tags = awsService.Arg("tag", "Key:value pair of tags to match EC2 instances.").Required().Strings()
 
 	// GCE service args
-	gceService  = app.Command("gce", "Use GCE service.")
+	gceService = app.Command("gce", "Use GCE service.")
 	credentials = gceService.Flag("credentials", "Path to service account JSON credentials").Required().String()
-	nameprefix  = gceService.Flag("nameprefix", "Instance name prefix, eg. varnish").Default("varnish").String()
-	project     = gceService.Flag("project", "Google project to discover varnish servers").Required().String()
-	region      = gceService.Flag("region", "Google region to discover varnish servers").Required().String()
+	nameprefix = gceService.Flag("nameprefix", "Instance name prefix, eg. varnish").Default("varnish").String()
+	project = gceService.Flag("project", "Google project to discover varnish servers").Required().String()
+	region = gceService.Flag("region", "Google region to discover varnish servers").Required().String()
+
+	ipService = app.Command("ip", "Use IP Addresses.")
+	hostnames = ipService.Flag("host", "Comma seperated list of IP Addresses to replay the purge requests to").Required().String()
 
 	// Application variables
-	resetAfter      time.Time
-	service         providers.Service
+	resetAfter time.Time
+	service providers.Service
 	taggedInstances = []string{}
 )
 
@@ -64,7 +67,7 @@ func main() {
 	kingpin.Version("3.0.1")
 
 	// Log to syslog
-	sl, err := syslog.New(syslog.LOG_NOTICE|syslog.LOG_LOCAL0, "[varnish-purge-proxy]")
+	sl, err := syslog.New(syslog.LOG_NOTICE | syslog.LOG_LOCAL0, "[varnish-purge-proxy]")
 	defer sl.Close()
 	if err != nil {
 		log.Println("Error writing to syslog")
@@ -96,10 +99,13 @@ func main() {
 		if err != nil {
 			log.Fatalln("Failed to Authenticate GCE Service:", err)
 		}
+	case ipService.FullCommand():
+		service & providers.IPProvider{
+			Hosts: *strings.Split(hostnames, ','),
+		}
+
 	}
-
 	go serveHTTP(*port, *listen, service)
-
 	select {}
 }
 
@@ -142,7 +148,7 @@ func requestHandler(w http.ResponseWriter, r *http.Request, client *http.Client,
 	// Check instance cache
 	if time.Now().After(resetAfter) {
 		privateIPs = service.GetPrivateIPs()
-		resetAfter = time.Now().Add(time.Duration(*cache*1000) * time.Millisecond)
+		resetAfter = time.Now().Add(time.Duration(*cache * 1000) * time.Millisecond)
 		taggedInstances = privateIPs
 	}
 

@@ -1,6 +1,6 @@
 // Package toolresults provides access to the Cloud Tool Results API.
 //
-// See https://developers.google.com/cloud-test-lab/
+// See https://firebase.google.com/docs/test-lab/
 //
 // Usage example:
 //
@@ -271,12 +271,15 @@ func (s *Any) MarshalJSON() ([]byte, error) {
 type BasicPerfSampleSeries struct {
 	// Possible values:
 	//   "cpu"
+	//   "graphics"
 	//   "memory"
 	//   "network"
 	//   "perfMetricTypeUnspecified"
 	PerfMetricType string `json:"perfMetricType,omitempty"`
 
 	// Possible values:
+	//   "bytesPerSecond"
+	//   "framesPerSecond"
 	//   "kibibyte"
 	//   "percent"
 	//   "perfUnitUnspecified"
@@ -286,9 +289,13 @@ type BasicPerfSampleSeries struct {
 	//   "cpuKernel"
 	//   "cpuTotal"
 	//   "cpuUser"
+	//   "graphicsFrameRate"
 	//   "memoryRssPrivate"
 	//   "memoryRssShared"
 	//   "memoryRssTotal"
+	//   "memoryTotal"
+	//   "networkReceived"
+	//   "networkSent"
 	//   "ntBytesReceived"
 	//   "ntBytesTransferred"
 	//   "sampleSeriesTypeUnspecified"
@@ -487,7 +494,9 @@ type Duration struct {
 	Nanos int64 `json:"nanos,omitempty"`
 
 	// Seconds: Signed seconds of the span of time. Must be from
-	// -315,576,000,000 to +315,576,000,000 inclusive.
+	// -315,576,000,000 to +315,576,000,000 inclusive. Note: these bounds
+	// are computed from: 60 sec/min * 60 min/hr * 24 hr/day * 365.25
+	// days/year * 10000 years
 	Seconds int64 `json:"seconds,omitempty,string"`
 
 	// ForceSendFields is a list of field names (e.g. "Nanos") to
@@ -1223,6 +1232,7 @@ type PerfMetricsSummary struct {
 	//
 	// Possible values:
 	//   "cpu"
+	//   "graphics"
 	//   "memory"
 	//   "network"
 	//   "perfMetricTypeUnspecified"
@@ -4508,7 +4518,10 @@ func (c *ProjectsHistoriesExecutionsStepsGetPerfMetricsSummaryCall) Do(opts ...g
 	//   "path": "{projectId}/histories/{historyId}/executions/{executionId}/steps/{stepId}/perfMetricsSummary",
 	//   "response": {
 	//     "$ref": "PerfMetricsSummary"
-	//   }
+	//   },
+	//   "scopes": [
+	//     "https://www.googleapis.com/auth/cloud-platform"
+	//   ]
 	// }
 
 }
@@ -5640,6 +5653,7 @@ func (r *ProjectsHistoriesExecutionsStepsPerfSampleSeriesService) List(projectId
 //
 // Possible values:
 //   "cpu"
+//   "graphics"
 //   "memory"
 //   "network"
 //   "perfMetricTypeUnspecified"
@@ -5765,11 +5779,13 @@ func (c *ProjectsHistoriesExecutionsStepsPerfSampleSeriesListCall) Do(opts ...go
 	//       "description": "Specify one or more PerfMetricType values such as CPU to filter the result",
 	//       "enum": [
 	//         "cpu",
+	//         "graphics",
 	//         "memory",
 	//         "network",
 	//         "perfMetricTypeUnspecified"
 	//       ],
 	//       "enumDescriptions": [
+	//         "",
 	//         "",
 	//         "",
 	//         "",

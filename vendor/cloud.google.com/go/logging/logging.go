@@ -36,6 +36,7 @@ import (
 	"sync"
 	"time"
 
+	"cloud.google.com/go/internal/version"
 	vkit "cloud.google.com/go/logging/apiv2"
 	"cloud.google.com/go/logging/internal"
 	"github.com/golang/protobuf/proto"
@@ -125,7 +126,7 @@ func NewClient(ctx context.Context, projectID string, opts ...option.ClientOptio
 	if err != nil {
 		return nil, err
 	}
-	c.SetGoogleClientInfo("logging", internal.Version)
+	c.SetGoogleClientInfo("gccl", version.Repo)
 	client := &Client{
 		client:    c,
 		projectID: projectID,
@@ -313,7 +314,7 @@ func (c *Client) Logger(logID string, opts ...LoggerOption) *Logger {
 	go func() {
 		defer c.loggers.Done()
 		<-c.donec
-		l.bundler.Close()
+		l.bundler.Stop()
 	}()
 	return l
 }
@@ -499,19 +500,22 @@ func fromHTTPRequest(r *HTTPRequest) *logtypepb.HttpRequest {
 	}
 	u := *r.Request.URL
 	u.Fragment = ""
-	return &logtypepb.HttpRequest{
+	pb := &logtypepb.HttpRequest{
 		RequestMethod:                  r.Request.Method,
 		RequestUrl:                     u.String(),
 		RequestSize:                    r.RequestSize,
 		Status:                         int32(r.Status),
 		ResponseSize:                   r.ResponseSize,
-		Latency:                        ptypes.DurationProto(r.Latency),
 		UserAgent:                      r.Request.UserAgent(),
 		RemoteIp:                       r.RemoteIP, // TODO(jba): attempt to parse http.Request.RemoteAddr?
 		Referer:                        r.Request.Referer(),
 		CacheHit:                       r.CacheHit,
 		CacheValidatedWithOriginServer: r.CacheValidatedWithOriginServer,
 	}
+	if r.Latency != 0 {
+		pb.Latency = ptypes.DurationProto(r.Latency)
+	}
+	return pb
 }
 
 // toProtoStruct converts v, which must marshal into a JSON object,

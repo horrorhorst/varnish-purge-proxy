@@ -14141,6 +14141,121 @@ func (c *ManagementProfilesUpdateCall) Do(opts ...googleapi.CallOption) (*Profil
 
 }
 
+// method id "analytics.management.remarketingAudience.delete":
+
+type ManagementRemarketingAudienceDeleteCall struct {
+	s                     *Service
+	accountId             string
+	webPropertyId         string
+	remarketingAudienceId string
+	urlParams_            gensupport.URLParams
+	ctx_                  context.Context
+	header_               http.Header
+}
+
+// Delete: Delete a remarketing audience.
+func (r *ManagementRemarketingAudienceService) Delete(accountId string, webPropertyId string, remarketingAudienceId string) *ManagementRemarketingAudienceDeleteCall {
+	c := &ManagementRemarketingAudienceDeleteCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+	c.accountId = accountId
+	c.webPropertyId = webPropertyId
+	c.remarketingAudienceId = remarketingAudienceId
+	return c
+}
+
+// Fields allows partial responses to be retrieved. See
+// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *ManagementRemarketingAudienceDeleteCall) Fields(s ...googleapi.Field) *ManagementRemarketingAudienceDeleteCall {
+	c.urlParams_.Set("fields", googleapi.CombineFields(s))
+	return c
+}
+
+// Context sets the context to be used in this call's Do method. Any
+// pending HTTP request will be aborted if the provided context is
+// canceled.
+func (c *ManagementRemarketingAudienceDeleteCall) Context(ctx context.Context) *ManagementRemarketingAudienceDeleteCall {
+	c.ctx_ = ctx
+	return c
+}
+
+// Header returns an http.Header that can be modified by the caller to
+// add HTTP headers to the request.
+func (c *ManagementRemarketingAudienceDeleteCall) Header() http.Header {
+	if c.header_ == nil {
+		c.header_ = make(http.Header)
+	}
+	return c.header_
+}
+
+func (c *ManagementRemarketingAudienceDeleteCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	for k, v := range c.header_ {
+		reqHeaders[k] = v
+	}
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	var body io.Reader = nil
+	c.urlParams_.Set("alt", alt)
+	urls := googleapi.ResolveRelative(c.s.BasePath, "management/accounts/{accountId}/webproperties/{webPropertyId}/remarketingAudiences/{remarketingAudienceId}")
+	urls += "?" + c.urlParams_.Encode()
+	req, _ := http.NewRequest("DELETE", urls, body)
+	req.Header = reqHeaders
+	googleapi.Expand(req.URL, map[string]string{
+		"accountId":             c.accountId,
+		"webPropertyId":         c.webPropertyId,
+		"remarketingAudienceId": c.remarketingAudienceId,
+	})
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
+}
+
+// Do executes the "analytics.management.remarketingAudience.delete" call.
+func (c *ManagementRemarketingAudienceDeleteCall) Do(opts ...googleapi.CallOption) error {
+	gensupport.SetOptions(c.urlParams_, opts...)
+	res, err := c.doRequest("json")
+	if err != nil {
+		return err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return err
+	}
+	return nil
+	// {
+	//   "description": "Delete a remarketing audience.",
+	//   "httpMethod": "DELETE",
+	//   "id": "analytics.management.remarketingAudience.delete",
+	//   "parameterOrder": [
+	//     "accountId",
+	//     "webPropertyId",
+	//     "remarketingAudienceId"
+	//   ],
+	//   "parameters": {
+	//     "accountId": {
+	//       "description": "Account ID to which the remarketing audience belongs.",
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "remarketingAudienceId": {
+	//       "description": "The ID of the remarketing audience to delete.",
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "webPropertyId": {
+	//       "description": "Web property ID to which the remarketing audience belongs.",
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     }
+	//   },
+	//   "path": "management/accounts/{accountId}/webproperties/{webPropertyId}/remarketingAudiences/{remarketingAudienceId}",
+	//   "scopes": [
+	//     "https://www.googleapis.com/auth/analytics.edit"
+	//   ]
+	// }
+
+}
+
 // method id "analytics.management.remarketingAudience.get":
 
 type ManagementRemarketingAudienceGetCall struct {

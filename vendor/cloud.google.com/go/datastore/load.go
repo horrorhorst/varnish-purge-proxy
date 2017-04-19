@@ -47,6 +47,8 @@ func typeMismatchReason(p Property, v reflect.Value) string {
 		entityType = "float"
 	case *Key:
 		entityType = "*datastore.Key"
+	case *Entity:
+		entityType = "*datastore.Entity"
 	case GeoPoint:
 		entityType = "GeoPoint"
 	case time.Time:
@@ -87,36 +89,30 @@ func (l *propertyLoader) loadOneElement(codec fields.List, structValue reflect.V
 	var v reflect.Value
 
 	name := p.Name
-	for name != "" {
-		// First we try to find a field with name matching
-		// the value of 'name' exactly (though case-insensitively).
-		field := codec.Match(name)
-		if field != nil {
-			name = ""
-		} else {
-			// Now try for legacy flattened nested field (named eg. "A.B.C.D").
+	fieldNames := strings.Split(name, ".")
 
-			parent := name
-			child := ""
+	for len(fieldNames) > 0 {
+		var field *fields.Field
 
-			// Cut off the last field (delimited by ".") and find its parent
-			// in the codec.
-			// eg. for name "A.B.C.D", split off "A.B.C" and try to
-			// find a field in the codec with this name.
-			// Loop again with "A.B", etc.
-			for field == nil {
-				i := strings.LastIndex(parent, ".")
-				if i < 0 {
-					return "no such struct field"
-				}
-				if i == len(name)-1 {
-					return "field name cannot end with '.'"
-				}
-				parent, child = name[:i], name[i+1:]
-				field = codec.Match(parent)
+		// Start by trying to find a field with name. If none found,
+		// cut off the last field (delimited by ".") and find its parent
+		// in the codec.
+		// eg. for name "A.B.C.D", split off "A.B.C" and try to
+		// find a field in the codec with this name.
+		// Loop again with "A.B", etc.
+		for i := len(fieldNames); i > 0; i-- {
+			parent := strings.Join(fieldNames[:i], ".")
+			field = codec.Match(parent)
+			if field != nil {
+				fieldNames = fieldNames[i:]
+				break
 			}
+		}
 
-			name = child
+		// If we never found a matching field in the codec, return
+		// error message.
+		if field == nil {
+			return "no such struct field"
 		}
 
 		v = initField(structValue, field.Index)
@@ -188,6 +184,7 @@ func (l *propertyLoader) loadOneElement(codec fields.List, structValue reflect.V
 // setVal sets 'v' to the value of the Property 'p'.
 func setVal(v reflect.Value, p Property) string {
 	pValue := p.Value
+
 	switch v.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		x, ok := pValue.(int64)
@@ -220,14 +217,37 @@ func setVal(v reflect.Value, p Property) string {
 		}
 		v.SetFloat(x)
 	case reflect.Ptr:
-		x, ok := pValue.(*Key)
-		if !ok && pValue != nil {
+		// v must be either a pointer to a Key or Entity.
+		if v.Type() != typeOfKeyPtr && v.Type().Elem().Kind() != reflect.Struct {
 			return typeMismatchReason(p, v)
 		}
-		if _, ok := v.Interface().(*Key); !ok {
+
+		if pValue == nil {
+			// If v is populated already, set it to nil.
+			if !v.IsNil() {
+				v.Set(reflect.New(v.Type()).Elem())
+			}
+			return ""
+		}
+
+		switch x := pValue.(type) {
+		case *Key:
+			if _, ok := v.Interface().(*Key); !ok {
+				return typeMismatchReason(p, v)
+			}
+			v.Set(reflect.ValueOf(x))
+		case *Entity:
+			if v.IsNil() {
+				v.Set(reflect.New(v.Type().Elem()))
+			}
+			err := loadEntity(v.Interface(), x)
+			if err != nil {
+				return err.Error()
+			}
+
+		default:
 			return typeMismatchReason(p, v)
 		}
-		v.Set(reflect.ValueOf(x))
 	case reflect.Struct:
 		switch v.Type() {
 		case typeOfTime:
@@ -248,20 +268,12 @@ func setVal(v reflect.Value, p Property) string {
 				return typeMismatchReason(p, v)
 			}
 
-			// Recursively load nested struct
-			pls, err := newStructPLS(v.Addr().Interface())
-			if err != nil {
-				return err.Error()
+			// Check if v implements PropertyLoadSaver.
+			if _, ok := v.Interface().(PropertyLoadSaver); ok {
+				return fmt.Sprintf("datastore: PropertyLoadSaver methods must be implemented on a pointer to %T.", v.Interface())
 			}
 
-			// if ent has a Key value and our struct has a Key field,
-			// load the Entity's Key value into the Key field on the struct.
-			keyField := pls.codec.Match(keyFieldName)
-			if keyField != nil && ent.Key != nil {
-				pls.v.FieldByIndex(keyField.Index).Set(reflect.ValueOf(ent.Key))
-			}
-
-			err = pls.Load(ent.Properties)
+			err := loadEntity(v.Addr().Interface(), ent)
 			if err != nil {
 				return err.Error()
 			}
@@ -297,16 +309,39 @@ func initField(val reflect.Value, index []int) reflect.Value {
 	return val.Field(index[len(index)-1])
 }
 
-// loadEntity loads an EntityProto into PropertyLoadSaver or struct pointer.
-func loadEntity(dst interface{}, src *pb.Entity) (err error) {
+// loadEntityProto loads an EntityProto into PropertyLoadSaver or struct pointer.
+func loadEntityProto(dst interface{}, src *pb.Entity) error {
 	ent, err := protoToEntity(src)
 	if err != nil {
 		return err
 	}
-	if e, ok := dst.(PropertyLoadSaver); ok {
-		return e.Load(ent.Properties)
+	return loadEntity(dst, ent)
+}
+
+func loadEntity(dst interface{}, ent *Entity) error {
+	if pls, ok := dst.(PropertyLoadSaver); ok {
+		return pls.Load(ent.Properties)
 	}
-	return LoadStruct(dst, ent.Properties)
+	return loadEntityToStruct(dst, ent)
+}
+
+func loadEntityToStruct(dst interface{}, ent *Entity) error {
+	pls, err := newStructPLS(dst)
+	if err != nil {
+		return err
+	}
+	// Load properties.
+	err = pls.Load(ent.Properties)
+	if err != nil {
+		return err
+	}
+	// Load key.
+	keyField := pls.codec.Match(keyFieldName)
+	if keyField != nil && ent.Key != nil {
+		pls.v.FieldByIndex(keyField.Index).Set(reflect.ValueOf(ent.Key))
+	}
+
+	return nil
 }
 
 func (s structPLS) Load(props []Property) error {

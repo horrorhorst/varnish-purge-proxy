@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	btopt "cloud.google.com/go/bigtable/internal/option"
+	"cloud.google.com/go/longrunning"
 	"golang.org/x/net/context"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
@@ -100,10 +101,28 @@ func (ac *AdminClient) CreateTable(ctx context.Context, table string) error {
 		TableId: table,
 	}
 	_, err := ac.tClient.CreateTable(ctx, req)
-	if err != nil {
-		return err
+	return err
+}
+
+// CreatePresplitTable creates a new table in the instance.
+// The list of row keys will be used to initially split the table into multiple tablets.
+// Given two split keys, "s1" and "s2", three tablets will be created,
+// spanning the key ranges: [, s1), [s1, s2), [s2, ).
+// This method may return before the table's creation is complete.
+func (ac *AdminClient) CreatePresplitTable(ctx context.Context, table string, split_keys []string) error {
+	var req_splits []*btapb.CreateTableRequest_Split
+	for _, split := range split_keys {
+		req_splits = append(req_splits, &btapb.CreateTableRequest_Split{[]byte(split)})
 	}
-	return nil
+	ctx = mergeMetadata(ctx, ac.md)
+	prefix := ac.instancePrefix()
+	req := &btapb.CreateTableRequest{
+		Parent:        prefix,
+		TableId:       table,
+		InitialSplits: req_splits,
+	}
+	_, err := ac.tClient.CreateTable(ctx, req)
+	return err
 }
 
 // CreateColumnFamily creates a new column family in a table.
@@ -227,21 +246,76 @@ func (iac *InstanceAdminClient) Close() error {
 	return iac.conn.Close()
 }
 
+// StorageType is the type of storage used for all tables in an instance
+type StorageType int
+
+const (
+	SSD StorageType = iota
+	HDD
+)
+
+func (st StorageType) proto() btapb.StorageType {
+	if st == HDD {
+		return btapb.StorageType_HDD
+	}
+	return btapb.StorageType_SSD
+}
+
 // InstanceInfo represents information about an instance
 type InstanceInfo struct {
 	Name        string // name of the instance
 	DisplayName string // display name for UIs
 }
 
+// InstanceConf contains the information necessary to create an Instance
+type InstanceConf struct {
+	InstanceId, DisplayName, ClusterId, Zone string
+	NumNodes                                 int32
+	StorageType                              StorageType
+}
+
 var instanceNameRegexp = regexp.MustCompile(`^projects/([^/]+)/instances/([a-z][-a-z0-9]*)$`)
 
-// Instances returns a list of instances in the project.
-func (cac *InstanceAdminClient) Instances(ctx context.Context) ([]*InstanceInfo, error) {
-	ctx = mergeMetadata(ctx, cac.md)
-	req := &btapb.ListInstancesRequest{
-		Parent: "projects/" + cac.project,
+// CreateInstance creates a new instance in the project.
+// This method will return when the instance has been created or when an error occurs.
+func (iac *InstanceAdminClient) CreateInstance(ctx context.Context, conf *InstanceConf) error {
+	ctx = mergeMetadata(ctx, iac.md)
+	req := &btapb.CreateInstanceRequest{
+		Parent:     "projects/" + iac.project,
+		InstanceId: conf.InstanceId,
+		Instance:   &btapb.Instance{DisplayName: conf.DisplayName},
+		Clusters: map[string]*btapb.Cluster{
+			conf.ClusterId: {
+				ServeNodes:         conf.NumNodes,
+				DefaultStorageType: conf.StorageType.proto(),
+				Location:           "projects/" + iac.project + "/locations/" + conf.Zone,
+			},
+		},
 	}
-	res, err := cac.iClient.ListInstances(ctx, req)
+
+	lro, err := iac.iClient.CreateInstance(ctx, req)
+	if err != nil {
+		return err
+	}
+	resp := btapb.Instance{}
+	return longrunning.InternalNewOperation(iac.conn, lro).Wait(ctx, &resp)
+}
+
+// DeleteInstance deletes an instance from the project.
+func (iac *InstanceAdminClient) DeleteInstance(ctx context.Context, instanceId string) error {
+	ctx = mergeMetadata(ctx, iac.md)
+	req := &btapb.DeleteInstanceRequest{"projects/" + iac.project + "/instances/" + instanceId}
+	_, err := iac.iClient.DeleteInstance(ctx, req)
+	return err
+}
+
+// Instances returns a list of instances in the project.
+func (iac *InstanceAdminClient) Instances(ctx context.Context) ([]*InstanceInfo, error) {
+	ctx = mergeMetadata(ctx, iac.md)
+	req := &btapb.ListInstancesRequest{
+		Parent: "projects/" + iac.project,
+	}
+	res, err := iac.iClient.ListInstances(ctx, req)
 	if err != nil {
 		return nil, err
 	}

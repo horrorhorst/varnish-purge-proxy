@@ -1311,10 +1311,11 @@ type DocumentsAnalyzeEntitiesCall struct {
 	header_                http.Header
 }
 
-// AnalyzeEntities: Finds named entities (currently finds proper names)
-// in the text,
-// entity types, salience, mentions for each entity, and other
-// properties.
+// AnalyzeEntities: Finds named entities (currently proper names and
+// common nouns) in the text
+// along with entity types, salience, mentions for each entity,
+// and
+// other properties.
 func (r *DocumentsService) AnalyzeEntities(analyzeentitiesrequest *AnalyzeEntitiesRequest) *DocumentsAnalyzeEntitiesCall {
 	c := &DocumentsAnalyzeEntitiesCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.analyzeentitiesrequest = analyzeentitiesrequest
@@ -1404,7 +1405,7 @@ func (c *DocumentsAnalyzeEntitiesCall) Do(opts ...googleapi.CallOption) (*Analyz
 	}
 	return ret, nil
 	// {
-	//   "description": "Finds named entities (currently finds proper names) in the text,\nentity types, salience, mentions for each entity, and other properties.",
+	//   "description": "Finds named entities (currently proper names and common nouns) in the text\nalong with entity types, salience, mentions for each entity, and\nother properties.",
 	//   "flatPath": "v1beta1/documents:analyzeEntities",
 	//   "httpMethod": "POST",
 	//   "id": "language.documents.analyzeEntities",

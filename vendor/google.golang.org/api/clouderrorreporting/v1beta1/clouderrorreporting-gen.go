@@ -535,13 +535,40 @@ type ReportedErrorEvent struct {
 	// Error Reporting system will be used.
 	EventTime string `json:"eventTime,omitempty"`
 
-	// Message: [Required] A message describing the error. The message can
-	// contain an
-	// exception stack in one of the supported programming languages and
-	// formats.
-	// In that case, the message is parsed and detailed exception
-	// information
-	// is returned when retrieving the error event again.
+	// Message: [Required] The error message.
+	// If no `context.reportLocation` is provided, the message must contain
+	// a
+	// header (typically consisting of the exception type name and an
+	// error
+	// message) and an exception stack trace in one of the supported
+	// programming
+	// languages and formats.
+	// Supported languages are Java, Python, JavaScript, Ruby, C#, PHP, and
+	// Go.
+	// Supported stack trace formats are:
+	//
+	// * **Java**: Must be the return value of
+	// [`Throwable.printStackTrace()`](https://docs.oracle.com/javase/7/docs/
+	// api/java/lang/Throwable.html#printStackTrace%28%29).
+	// * **Python**: Must be the return value of
+	// [`traceback.format_exc()`](https://docs.python.org/2/library/traceback
+	// .html#traceback.format_exc).
+	// * **JavaScript**: Must be the value of
+	// [`error.stack`](https://github.com/v8/v8/wiki/Stack-Trace-API)
+	// as returned by V8.
+	// * **Ruby**: Must contain frames returned by
+	// [`Exception.backtrace`](https://ruby-doc.org/core-2.2.0/Exception.html
+	// #method-i-backtrace).
+	// * **C#**: Must be the return value of
+	// [`Exception.ToString()`](https://msdn.microsoft.com/en-us/library/syst
+	// em.exception.tostring.aspx).
+	// * **PHP**: Must start with `PHP (Notice|Parse error|Fatal
+	// error|Warning)`
+	// and contain the result of
+	// [`(string)$exception`](http://php.net/manual/en/exception.tostring.php
+	// ).
+	// * **Go**: Must be the return value of
+	// [`runtime.Stack()`](https://golang.org/pkg/runtime/debug/#Stack).
 	Message string `json:"message,omitempty"`
 
 	// ServiceContext: [Required] The service context in which this error
@@ -602,6 +629,9 @@ type ServiceContext struct {
 	// provided,
 	// which could represent a version label or a Git SHA-1 hash, for
 	// example.
+	// For App Engine standard environment, the version is set to the
+	// version of
+	// the app.
 	Version string `json:"version,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "ResourceType") to
@@ -628,13 +658,12 @@ func (s *ServiceContext) MarshalJSON() ([]byte, error) {
 }
 
 // SourceLocation: Indicates a location in the source code of the
-// service for which
-// errors are reported.
-// This data should be provided by the application when reporting an
-// error,
-// unless the error report has been generated automatically from Google
-// App
-// Engine logs. All fields are optional.
+// service for which errors are
+// reported. `functionName` must be provided by the application when
+// reporting
+// an error, unless the error report contains a `message` with a
+// supported
+// exception stack trace. All fields are optional for the later case.
 type SourceLocation struct {
 	// FilePath: The source code filename, which can include a truncated
 	// relative
