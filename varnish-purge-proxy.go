@@ -220,7 +220,7 @@ func forwardRequest(r *http.Request, ip string, destport int, client http.Client
 	}
 	// 3rd party plugins/tools often sends purge requests via fsocket and because of this we have to save the
 	// original url to use it in our varanish purge logic
-	r.Header.Add("X-Old-Url",r.URL)
+	r.Header.Add("X-Old-Url",r.URL.String())
 	r.URL = newURL
 	response, err := client.Do(r)
 	if err != nil {
