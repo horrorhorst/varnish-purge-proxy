@@ -100,10 +100,9 @@ func main() {
 			log.Fatalln("Failed to Authenticate GCE Service:", err)
 		}
 	case ipService.FullCommand():
-		service & providers.IPProvider{
-			Hosts: *strings.Split(hostnames, ','),
+		service = &providers.IPProvider{
+			Hosts: strings.Split(*hostnames, ","),
 		}
-
 	}
 	go serveHTTP(*port, *listen, service)
 	select {}
