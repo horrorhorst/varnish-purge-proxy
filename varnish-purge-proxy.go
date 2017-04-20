@@ -200,7 +200,7 @@ func copyRequest(src *http.Request) (*http.Request, error) {
 		req.Header[k] = make([]string, len(vs))
 		copy(req.Header[k], vs)
 	}
-	log.Println(src)
+	log.Println(formatRequest(src))
 	req.Header.Set("Host", src.Host)
 	return req, nil
 }
@@ -234,4 +234,30 @@ func forwardRequest(r *http.Request, ip string, destport int, client http.Client
 	io.Copy(ioutil.Discard, response.Body)
 	defer response.Body.Close()
 	return
+}
+
+func formatRequest(r *http.Request) string {
+	// Create return string
+	var request []string
+	// Add the request string
+	url := fmt.Sprintf("%v %v %v", r.Method, r.URL, r.Proto)
+	request = append(request, url)
+	// Add the host
+	request = append(request, fmt.Sprintf("Host: %v", r.Host))
+	// Loop through headers
+	for name, headers := range r.Header {
+		name = strings.ToLower(name)
+		for _, h := range headers {
+			request = append(request, fmt.Sprintf("%v: %v", name, h))
+		}
+	}
+
+	// If this is a POST, add post data
+	if r.Method == "POST" {
+	r.ParseForm()
+	request = append(request, "\n")
+	request = append(request, r.Form.Encode())
+	}
+	// Return the request as a string
+	return strings.Join(request, "\n")
 }
