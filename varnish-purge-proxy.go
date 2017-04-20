@@ -230,6 +230,7 @@ func forwardRequest(r *http.Request, ip string, destport int, client http.Client
 		responseChannel <- 500
 		return
 	}
+	log.Println(response)
 	io.Copy(ioutil.Discard, response.Body)
 	defer response.Body.Close()
 	return
