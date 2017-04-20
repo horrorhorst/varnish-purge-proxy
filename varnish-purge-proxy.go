@@ -240,8 +240,8 @@ func formatRequest(r *http.Request) string {
 	// Create return string
 	var request []string
 	// Add the request string
-	url := fmt.Sprintf("%v %v %v", r.Method, r.URL, r.Proto)
-	request = append(request, url)
+	urltmp := fmt.Sprintf("%v %v %v", r.Method, r.URL, r.Proto)
+	request = append(request, urltmp)
 	// Add the host
 	request = append(request, fmt.Sprintf("Host: %v", r.Host))
 	// Loop through headers
