@@ -200,6 +200,7 @@ func copyRequest(src *http.Request) (*http.Request, error) {
 		req.Header[k] = make([]string, len(vs))
 		copy(req.Header[k], vs)
 	}
+	log.Println(src.Host)
 	req.Header.Set("Host", src.Host)
 	return req, nil
 }
