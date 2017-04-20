@@ -103,6 +103,7 @@ func main() {
 		service = &providers.IPProvider{
 			Hosts: strings.Split(*hostnames, ","),
 		}
+		log.Println(*hostnames);
 	}
 	go serveHTTP(*port, *listen, service)
 	select {}
