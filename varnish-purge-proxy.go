@@ -103,7 +103,6 @@ func main() {
 		service = &providers.IPProvider{
 			Hosts: strings.Split(*hostnames, ","),
 		}
-		log.Println(*hostnames);
 	}
 	go serveHTTP(*port, *listen, service)
 	select {}
@@ -135,8 +134,11 @@ func serveHTTP(port int, host string, service providers.Service) {
 }
 
 func requestHandler(w http.ResponseWriter, r *http.Request, client *http.Client, service providers.Service) {
-	// check that request is PURGE and has X-Purge-Regex header set
-	if _, exists := r.Header["X-Purge-Regex"]; !exists || r.Method != "PURGE" {
+	// check that request is PURGE
+	// if u don't have a purge logic implemented into your varnish vcl use the following if condition
+	// _, exists := r.Header["X-Purge-Regex"]; !exists || r.Method != "PURGE"
+	// this checks if there is a X-Purge-Regex header too
+	if r.Method != "PURGE" {
 		if *debug {
 			log.Printf("Error invalid request: %s, %s\n", r.Header, r.Method)
 		}
