@@ -220,6 +220,7 @@ func forwardRequest(r *http.Request, ip string, destport int, client http.Client
 		return
 	}
 	r.URL = newURL
+	log.Println(r);
 	response, err := client.Do(r)
 	if err != nil {
 		log.Printf("Error sending request: %s\n", err)
