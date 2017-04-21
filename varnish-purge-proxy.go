@@ -223,7 +223,7 @@ func forwardRequest(r *http.Request, ip string, destport int, client http.Client
 	//r.Header.Add("X-Old-Url",r.URL.String())
 	r.Header().Set("X-Old-Url",r.URL.String())
 	r.URL = newURL
-	log.Println("Request-Header:" + r.Header)
+	log.Println("Request:" + r)
 	response, err := client.Do(r)
 	if err != nil {
 		log.Printf("Error sending request: %s\n", err)
