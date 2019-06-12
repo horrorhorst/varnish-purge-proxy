@@ -20,6 +20,8 @@ package main
  */
 import (
 	"fmt"
+	"github.com/horrorhorst/varnish-purge-proxy/providers"
+	"gopkg.in/alecthomas/kingpin.v1"
 	"io"
 	"io/ioutil"
 	"log"
@@ -27,11 +29,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
-	"gopkg.in/alecthomas/kingpin.v1"
-	"github.com/horrorhorst/varnish-purge-proxy/providers"
-	"strings"
 )
 
 var (
@@ -42,6 +42,7 @@ var (
 	destport = app.Flag("destport", "The destination port of the varnish server to target.").Default("80").Int()
 	listen = app.Flag("listen", "Host address to listen on, defaults to 127.0.0.1").Default("127.0.0.1").String()
 	port = app.Flag("port", "Port to listen on.").Default("8000").Int()
+	customHost = app.Flag("chost","set custom host header to apply on all purge requests towards Varnish").Default("").String()
 
 	// AWS service args
 	awsService = app.Command("aws", "Use AWS service.")
@@ -154,7 +155,7 @@ func requestHandler(w http.ResponseWriter, r *http.Request, client *http.Client,
 		taggedInstances = privateIPs
 	}
 
-	log.Printf("Sending PURGE to: %+v", privateIPs)
+	log.Printf("Sending PURGE request to: %+v - for URL: %s\n", privateIPs, r.URL)
 	// start gorountine for each server
 	responseChannel := make(chan int, len(privateIPs))
 	requesturl := fmt.Sprintf("%v", r.URL)
@@ -207,8 +208,6 @@ func copyRequest(src *http.Request) (*http.Request, error) {
 func forwardRequest(r *http.Request, ip string, destport int, client http.Client, requesturl string, responseChannel chan int, wg *sync.WaitGroup) {
 	defer wg.Done()
 	r.Host = r.Header.Get("Host")
-	r.RequestURI = ""
-
 	newURL, err := url.Parse(fmt.Sprintf("http://%v:%d%v", ip, destport, requesturl))
 	if err != nil {
 		log.Printf("Error parsing URL: %s\n", err)
@@ -220,11 +219,18 @@ func forwardRequest(r *http.Request, ip string, destport int, client http.Client
 	}
 	// 3rd party plugins/tools often sends purge requests via fsocket and because of this we have to save the
 	// original url to use it in our varanish purge logic
-	//r.Header.Add("X-Old-Url",r.URL.String())
 	r.Header.Set("X-Old-Url",r.URL.String())
 	r.URL = newURL
-	log.Println(r)
+	if *customHost != "" {
+		log.Println("Setting custom header to:" + *customHost)
+		r.Header.Set("Host",*customHost)
+		r.Host = r.Header.Get("Host")
+	}
+	r.Header.Del("X-Purge-Method")
+	r.Header.Del("Accept-Encoding")
+	r.Header.Del("Referer")
 	response, err := client.Do(r)
+	defer response.Body.Close()
 	if err != nil {
 		log.Printf("Error sending request: %s\n", err)
 		if *debug {
@@ -234,6 +240,5 @@ func forwardRequest(r *http.Request, ip string, destport int, client http.Client
 		return
 	}
 	io.Copy(ioutil.Discard, response.Body)
-	defer response.Body.Close()
 	return
 }

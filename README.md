@@ -4,7 +4,7 @@ https://github.com/BashtonLtd/varnish-purge-proxy copypasta
 
 Proxy purge requests to multiple varnish servers
 
-Works with AWS or GCE.
+Works with AWS, GCE and custom IP Addresses.
 
 ## Global options
 
@@ -46,7 +46,7 @@ Specify an instance name prefix to limit instances that receive the purge reques
 
 Specify hostnames and you are good to go.
 
-### Example for IP service
+### Example for custom IP service
 
 `varnish-purge-proxy ip --host=192.168.1.100,192.168.1.101`
 
